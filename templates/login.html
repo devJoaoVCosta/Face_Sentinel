@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Face Sentinel — Login</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg: #0a0a0a; --panel: #111; --widget: #1a1a1a; --input: #0d1a0d;
+      --green: #00ff41; --green2: #00cc33; --cyan: #80ffcc;
+      --gray: #666; --lt: #aaa; --red: #ff4040; --border: #222;
+      --font: 'Courier New', monospace;
+    }
+    body {
+      background: var(--bg); font-family: var(--font);
+      display: flex; align-items: center; justify-content: center;
+      min-height: 100vh; overflow: hidden;
+    }
+
+    /* animated scan line background */
+    body::before {
+      content: ''; position: fixed; inset: 0; pointer-events: none;
+      background: repeating-linear-gradient(0deg,
+        transparent, transparent 3px,
+        rgba(0,255,65,.015) 3px, rgba(0,255,65,.015) 4px);
+      animation: scan 8s linear infinite;
+    }
+    @keyframes scan { from { background-position: 0 0; } to { background-position: 0 100vh; } }
+
+    .box {
+      background: var(--panel); border: 1px solid var(--border);
+      border-top: 3px solid var(--green2);
+      padding: 52px 56px; width: 400px; position: relative; z-index: 1;
+      box-shadow: 0 0 60px rgba(0,255,65,.07);
+    }
+    .logo   { color: var(--green); font-size: 44px; text-align: center; line-height: 1; }
+    .title  { color: var(--green); font-size: 22px; text-align: center; letter-spacing: 4px; margin: 10px 0 4px; }
+    .sub    { color: var(--gray);  font-size: 11px; text-align: center; letter-spacing: 1px; margin-bottom: 32px; }
+    hr      { border: none; border-top: 1px solid var(--border); margin: 0 0 24px; }
+    label   { display: block; color: var(--gray); font-size: 10px; letter-spacing: 2px; text-transform: uppercase; margin-bottom: 5px; }
+    input[type=text], input[type=password] {
+      width: 100%; background: var(--input); border: 1px solid var(--border);
+      border-bottom-color: var(--green2); color: var(--green);
+      font-family: var(--font); font-size: 15px; padding: 11px 14px;
+      outline: none; margin-bottom: 18px; transition: border-color .15s;
+    }
+    input:focus { border-color: var(--green2); }
+    .show-row { display: flex; align-items: center; gap: 8px; margin-bottom: 20px; }
+    .show-row input  { width: auto; margin: 0; accent-color: var(--green); }
+    .show-row label  { margin: 0; cursor: pointer; font-size: 11px; letter-spacing: 0; text-transform: none; }
+    .btn {
+      width: 100%; background: #0a200a; color: var(--green);
+      font-family: var(--font); font-size: 14px; font-weight: bold;
+      border: 1px solid var(--green2); padding: 13px; cursor: pointer;
+      letter-spacing: 2px; transition: background .15s;
+    }
+    .btn:hover  { background: #142014; }
+    .btn:active { background: #050a05; }
+    .error {
+      color: var(--red); font-size: 11px; text-align: center;
+      min-height: 18px; margin-top: 12px; letter-spacing: .5px;
+    }
+    .footer-note {
+      margin-top: 28px; color: #2a2a2a; font-size: 10px;
+      text-align: center; letter-spacing: 1px;
+    }
+    /* loading spinner inside button */
+    .btn.loading { opacity: .7; pointer-events: none; }
+  </style>
+</head>
+<body>
+<div class="box">
+  <div class="logo">◈</div>
+  <div class="title">FACE&nbsp;&nbsp;SENTINEL</div>
+  <div class="sub">v2.0 &nbsp;·&nbsp; Acesso Seguro</div>
+  <hr>
+
+  <label>Usuário</label>
+  <input type="text" id="u" autocomplete="username" placeholder="seu usuário" autofocus>
+
+  <label>Senha</label>
+  <input type="password" id="p" autocomplete="current-password" placeholder="••••••••">
+
+  <div class="show-row">
+    <input type="checkbox" id="show"
+           onchange="document.getElementById('p').type=this.checked?'text':'password'">
+    <label for="show">Mostrar senha</label>
+  </div>
+
+  <button class="btn" id="btn" onclick="login()">▶&nbsp;&nbsp;ENTRAR</button>
+  <div class="error" id="err"></div>
+  <div class="footer-note">Apenas usuários autorizados podem acessar.</div>
+</div>
+
+<script>
+document.getElementById('u').addEventListener('keydown', function(e){
+  if (e.key === 'Enter') document.getElementById('p').focus();
+});
+document.getElementById('p').addEventListener('keydown', function(e){
+  if (e.key === 'Enter') login();
+});
+
+async function login() {
+  var u   = document.getElementById('u').value.trim();
+  var p   = document.getElementById('p').value;
+  var err = document.getElementById('err');
+  var btn = document.getElementById('btn');
+  err.textContent = '';
+  if (!u || !p) { err.textContent = '⚠  Preencha usuário e senha.'; return; }
+  btn.classList.add('loading');
+  btn.textContent = '▶  Verificando…';
+  try {
+    var r = await fetch('/api/auth/login', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({username: u, password: p})
+    });
+    var data = await r.json();
+    if (data.ok) {
+      window.location.href = '/dashboard';
+    } else {
+      err.textContent = '✗  ' + (data.error || 'Credenciais inválidas.');
+      btn.classList.remove('loading');
+      btn.textContent = '▶  ENTRAR';
+      document.getElementById('p').value = '';
+      document.getElementById('p').focus();
+    }
+  } catch(e) {
+    err.textContent = '✗  Erro de conexão com o servidor.';
+    btn.classList.remove('loading');
+    btn.textContent = '▶  ENTRAR';
+  }
+}
+</script>
+</body>
+</html>

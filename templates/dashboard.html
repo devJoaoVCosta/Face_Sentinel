@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Face Sentinel — Dashboard</title>
+  <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+
+<!-- ── HEADER ──────────────────────────────────────────────────────────── -->
+<header>
+  <span class="logo">◈ FACE SENTINEL</span>
+  <span class="ver">v2.0</span>
+
+  <nav class="tabs">
+    <button class="tab active" id="tab-monitor" onclick="switchTab('monitor')">
+      📹 Monitoramento
+    </button>
+    <button class="tab" id="tab-reports" onclick="switchTab('reports')">
+      📊 Reports
+    </button>
+    {% if is_master %}
+    <button class="tab" id="tab-users" onclick="switchTab('users')">
+      👥 Usuários
+    </button>
+    <button class="tab" id="tab-settings" onclick="switchTab('settings')">
+      ⚙️ Configurações
+    </button>
+    {% endif %}
+  </nav>
+
+  <div class="header-right">
+    <span class="live-dot" id="live-dot"></span>
+    <span class="live-text" id="live-text">Offline</span>
+    <span class="user-badge {{ 'badge-master' if is_master else 'badge-user' }}">
+      ● {{ username|upper }}
+    </span>
+    <button class="logout-btn" onclick="logout()">✕ Sair</button>
+  </div>
+</header>
+
+<!-- ── MONITOR TAB ─────────────────────────────────────────────────────── -->
+<section id="pane-monitor" class="pane active">
+  <div class="monitor-layout">
+
+    <!-- left controls -->
+    <aside class="sidebar">
+      <div class="side-section">
+        <div class="side-title">◈ CÂMERAS</div>
+        <button class="btn-green" id="btn-scan" onclick="scanCameras()">⊕ Escanear câmeras</button>
+        <div id="cam-checklist" class="cam-checklist"></div>
+        <button class="btn-green" id="btn-open-cams" onclick="openSelected()" style="display:none">
+          ▶ Abrir selecionadas
+        </button>
+        <div class="sep"></div>
+        <div class="side-title">◈ ATIVAS</div>
+        <div id="active-cams"></div>
+      </div>
+
+      <div class="side-section">
+        <div class="side-title">◈ MODO</div>
+        <label class="radio-row"><input type="radio" name="mode" value="face" checked onchange="applySettings()"> FACE</label>
+        <label class="radio-row"><input type="radio" name="mode" value="eyes"  onchange="applySettings()"> EYES</label>
+        <label class="radio-row"><input type="radio" name="mode" value="smile" onchange="applySettings()"> SMILE</label>
+        <label class="radio-row"><input type="radio" name="mode" value="all"   onchange="applySettings()"> ALL</label>
+      </div>
+
+      <div class="side-section">
+        <div class="side-title">◈ SENSIBILIDADE</div>
+        <label class="slider-label">Confiança DNN: <span id="val-conf">0.50</span></label>
+        <input type="range" id="sl-conf" min="10" max="99" value="50"
+               oninput="document.getElementById('val-conf').textContent=(this.value/100).toFixed(2);applySettings()">
+        <label class="slider-label">Scale factor: <span id="val-scale">1.15</span></label>
+        <input type="range" id="sl-scale" min="105" max="150" value="115"
+               oninput="document.getElementById('val-scale').textContent=(this.value/100).toFixed(2);applySettings()">
+        <label class="slider-label">Min neighbors: <span id="val-neigh">5</span></label>
+        <input type="range" id="sl-neigh" min="1" max="12" value="5"
+               oninput="document.getElementById('val-neigh').textContent=this.value;applySettings()">
+      </div>
+
+      <div class="side-section">
+        <div class="side-title">◈ OPÇÕES</div>
+        <label class="check-row"><input type="checkbox" id="opt-heatmap" onchange="applySettings()"> Heatmap</label>
+        <label class="check-row"><input type="checkbox" id="opt-scanlines" checked onchange="applySettings()"> Scanlines</label>
+      </div>
+
+      <div class="side-section">
+        <div class="side-title">◈ STATS</div>
+        <div id="stats-list" class="stats-list"></div>
+      </div>
+    </aside>
+
+    <!-- video grid -->
+    <main class="video-area">
+      <div id="video-grid" class="video-grid">
+        <div class="no-signal">
+          <span>◈ SEM SINAL ◈</span>
+          <small>Clique em ⊕ Escanear câmeras para começar</small>
+        </div>
+      </div>
+    </main>
+
+  </div>
+</section>
+
+<!-- ── REPORTS TAB ─────────────────────────────────────────────────────── -->
+<section id="pane-reports" class="pane">
+  <div class="reports-layout">
+
+    <div class="reports-toolbar">
+      <div class="toolbar-group">
+        <span class="tb-label">CÂMERA</span>
+        <select id="rf-cam"><option value="all">Todas</option></select>
+      </div>
+      <div class="toolbar-group">
+        <span class="tb-label">ENGINE</span>
+        <select id="rf-engine">
+          <option value="all">Todas</option>
+          <option value="DNN">DNN</option>
+          <option value="HAAR">HAAR</option>
+        </select>
+      </div>
+      <div class="toolbar-group">
+        <span class="tb-label">CONFIANÇA</span>
+        <select id="rf-conf">
+          <option value="0">Qualquer</option>
+          <option value="0.5">≥ 50%</option>
+          <option value="0.7">≥ 70%</option>
+          <option value="0.9">≥ 90%</option>
+        </select>
+      </div>
+      <div class="toolbar-group">
+        <span class="tb-label">ORDEM</span>
+        <button class="sort-btn active" id="s-new"  onclick="setSort('new')">Recente</button>
+        <button class="sort-btn"        id="s-old"  onclick="setSort('old')">Antigo</button>
+        <button class="sort-btn"        id="s-conf" onclick="setSort('conf')">Confiança</button>
+      </div>
+      <div class="toolbar-group" style="margin-left:auto;gap:8px">
+        <span class="count-info">
+          <span id="r-vis">0</span> / <span id="r-tot">0</span> faces
+        </span>
+        <button class="btn-cyan" onclick="pushToGitHub()">🌐 Publicar no GitHub</button>
+        <button class="btn-dim"  onclick="clearReports()">🗑 Limpar</button>
+      </div>
+    </div>
+
+    <div id="report-summary" class="report-summary"></div>
+    <div id="report-grid" class="report-grid">
+      <div class="no-signal">
+        <span>◈ SEM DADOS ◈</span>
+        <small>Inicie a webcam — faces são capturadas automaticamente</small>
+      </div>
+    </div>
+  </div>
+</section>
+
+{% if is_master %}
+<!-- ── USERS TAB ──────────────────────────────────────────────────────── -->
+<section id="pane-users" class="pane">
+  <div class="panel-box">
+    <h2 class="panel-title">◈ GERENCIAMENTO DE USUÁRIOS</h2>
+
+    <div class="users-grid">
+      <!-- user list -->
+      <div>
+        <div class="side-title">USUÁRIOS CADASTRADOS</div>
+        <div id="users-list" class="users-list"></div>
+        <button class="btn-dim" style="margin-top:10px" onclick="loadUsers()">↺ Atualizar</button>
+      </div>
+
+      <!-- create form -->
+      <div>
+        <div class="side-title">CRIAR NOVO USUÁRIO</div>
+        <label class="form-label">Usuário</label>
+        <input type="text" class="form-input" id="new-uname" placeholder="nome do usuário">
+        <label class="form-label">Senha</label>
+        <input type="password" class="form-input" id="new-pass" placeholder="senha">
+        <button class="btn-green" style="margin-top:10px;width:100%" onclick="createUser()">
+          ➕ Criar usuário
+        </button>
+        <div class="form-msg" id="user-msg"></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ── SETTINGS TAB ───────────────────────────────────────────────────── -->
+<section id="pane-settings" class="pane">
+  <div class="panel-box">
+    <h2 class="panel-title">◈ CONFIGURAÇÕES GITHUB PAGES</h2>
+
+    <div class="settings-form">
+      <label class="form-label">🔑 GitHub Token (PAT)</label>
+      <input type="password" class="form-input" id="cfg-token" placeholder="ghp_…">
+      <small class="hint">Settings → Developer settings → Personal access tokens → repo</small>
+
+      <label class="form-label">📁 Repositório</label>
+      <input type="text" class="form-input" id="cfg-repo" placeholder="usuario/nome-do-repo">
+
+      <label class="form-label">🌿 Branch</label>
+      <input type="text" class="form-input" id="cfg-branch" value="main">
+
+      <label class="form-label">🌐 URL do GitHub Pages</label>
+      <input type="text" class="form-input" id="cfg-url" placeholder="https://usuario.github.io/repo">
+
+      <div class="check-row" style="margin-top:14px">
+        <input type="checkbox" id="cfg-auto">
+        <label for="cfg-auto">Auto-sincronizar a cada</label>
+        <input type="number" id="cfg-interval" value="30" min="10" max="300"
+               style="width:56px;background:var(--widget);border:1px solid var(--border);
+                      color:var(--green);font-family:var(--font);font-size:12px;padding:2px 6px">
+        <span style="color:var(--gray);font-size:11px">segundos</span>
+      </div>
+
+      <div class="settings-btns">
+        <button class="btn-cyan" onclick="testGitHub()">🔌 Testar conexão</button>
+        <button class="btn-green" onclick="saveGitHub()">💾 Salvar</button>
+      </div>
+      <div class="form-msg" id="gh-msg"></div>
+    </div>
+  </div>
+</section>
+{% endif %}
+
+<!-- ── toast notification ────────────────────────────────────────────── -->
+<div id="toast" class="toast"></div>
+
+<script src="/static/js/app.js"></script>
+<script>
+  // inject server-side data into JS
+  window.FS_CONFIG = {
+    is_master: {{ 'true' if is_master else 'false' }},
+    username:  "{{ username }}",
+  };
+</script>
+</body>
+</html>
